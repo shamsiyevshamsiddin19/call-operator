@@ -1,0 +1,125 @@
+name: CI
+
+# Har push va pull request'da sifat darvozasi (konstitutsiya 5-bosqich).
+# Tartib ataylab shunday: arzon tekshiruvlar oldin ishlaydi, shuning uchun
+# formatlash xatosi tufayli 3 daqiqalik test to'plami kutilmaydi.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  # Bir branch'ga ketma-ket push qilinsa, eski yurish bekor qilinadi
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  lint:
+    name: Lint va tiplar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Bog'liqliklarni o'rnatish
+        run: pip install -q ".[dev]"
+
+      - name: Ruff — linter
+        run: ruff check . --output-format=github
+
+      - name: Ruff — formatlash
+        run: ruff format --check .
+
+      - name: Mypy — qat'iy tiplar
+        # Sozlamalar modulini topishi uchun minimal muhit kerak
+        env:
+          DJANGO_SECRET_KEY: ci-mypy-uchun-vaqtinchalik-kalit
+          DATABASE_URL: postgres://call_operator:parol@localhost:5432/call_operator
+          REDIS_URL: redis://localhost:6379/0
+        run: mypy apps config tests conftest.py
+
+  test:
+    name: Testlar
+    runs-on: ubuntu-latest
+    needs: lint
+
+    services:
+      # PostgreSQL majburiy: testlar CheckConstraint, PL/pgSQL triggerlari va
+      # SELECT FOR UPDATE xatti-harakatini tekshiradi. SQLite ularni
+      # simulyatsiya qilolmaydi, shuning uchun bazani almashtirish mumkin emas.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: call_operator
+          POSTGRES_USER: call_operator
+          POSTGRES_PASSWORD: ci_parol
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U call_operator"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      DJANGO_SECRET_KEY: ci-testlar-uchun-vaqtinchalik-kalit
+      DJANGO_DEBUG: "False"
+      DATABASE_URL: postgres://call_operator:ci_parol@localhost:5432/call_operator
+      REDIS_URL: redis://localhost:6379/0
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Bog'liqliklarni o'rnatish
+        run: pip install -q ".[dev]"
+
+      - name: Django tizim tekshiruvlari
+        run: python manage.py check --deploy --fail-level WARNING
+        continue-on-error: true # prod sozlamalari alohida tekshiriladi
+
+      - name: Migratsiyalar modellarga mos kelishini tekshirish
+        # Modelni o'zgartirib migratsiya yozmaslik - eng ko'p uchraydigan
+        # xato. CI bu holatni push bo'lishidan oldin to'sadi.
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Migratsiyalarni qo'llash
+        run: python manage.py migrate --noinput
+
+      - name: Testlar va qamrov
+        # Qamrov 85% dan past bo'lsa yurish yiqiladi (pyproject.toml).
+        # Poyga holati testlari parallel ishlatilmaydi: ular haqiqiy
+        # tranzaksiyalar bilan ishlaydi va o'zaro xalaqit berishi mumkin.
+        run: pytest -v --maxfail=5
+
+      - name: Qamrov hisobotini saqlash
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+          if-no-files-found: ignore

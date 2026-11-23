@@ -111,6 +111,14 @@ module = ["environ.*", "celery.*", "django_celery_beat.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+# `celery.shared_task` tiplanmagan dekorator: u o'ralgan funksiyani ham
+# tipsiz deb belgilaydi. Funksiyaning o'z imzosi va tanasi strict rejimda
+# tekshirilishda davom etadi — faqat dekoratorning o'zi haqidagi ogohlantirish
+# o'chiriladi.
+module = ["apps.*.tasks"]
+disable_error_code = ["untyped-decorator"]
+
+[[tool.mypy.overrides]]
 # `factory-boy` qisman tip ma'lumotiga ega, ammo u noto'g'ri: fabrika
 # chaqiruvi (`ProductFactory()`) yaratilgan modelni emas, fabrika klassini
 # qaytargan ko'rinadi. `follow_imports = "skip"` bu modulni mypy uchun
