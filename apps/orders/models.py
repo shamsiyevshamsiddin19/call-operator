@@ -265,6 +265,19 @@ class OrderLine(TimestampedModel):
     )
 
     # ── Rezervatsiya holati (INV-07) ─────────────────────────────────────────
+    reserved_stock = models.ForeignKey(
+        "inventory.Stock",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="order_lines",
+        verbose_name=_("rezerv qilingan zaxira"),
+        help_text=_(
+            "Qaysi ombordagi zaxiradan rezerv qilingani. Bekor qilishda "
+            "aynan shu qatorga qaytarilishi uchun saqlanadi - ko'p omborli "
+            "holatda mahsulot bo'yicha izlash noaniq natija berardi."
+        ),
+    )
     reserved_quantity = models.PositiveIntegerField(
         _("rezerv qilingan miqdor"),
         default=0,
@@ -300,12 +313,17 @@ class OrderLine(TimestampedModel):
                 condition=Q(reserved_quantity__lte=F("quantity")),
                 name="order_line_reserved_not_exceeding_quantity",
             ),
-            # Rezerv bor bo'lsa muddati ham bo'lishi shart — muddatsiz rezerv
-            # omborni abadiy bloklab qo'yardi (INV-07).
+            # Rezerv bor bo'lsa muddati va manbasi ham bo'lishi shart:
+            # muddatsiz rezerv omborni abadiy bloklab qo'yardi (INV-07), manbasiz
+            # rezervni esa bekor qilishda qaysi zaxiraga qaytarish noaniq bo'lardi.
             models.CheckConstraint(
                 condition=Q(reserved_quantity=0)
-                | (Q(reserved_quantity__gt=0) & Q(reservation_expires_at__isnull=False)),
-                name="order_line_reservation_requires_expiry",
+                | (
+                    Q(reserved_quantity__gt=0)
+                    & Q(reservation_expires_at__isnull=False)
+                    & Q(reserved_stock__isnull=False)
+                ),
+                name="order_line_reservation_requires_expiry_and_stock",
             ),
         ]
 

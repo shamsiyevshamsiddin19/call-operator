@@ -107,13 +107,30 @@ plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
 exclude = ['/migrations/']
 
 [[tool.mypy.overrides]]
-module = ["environ.*", "celery.*", "factory.*", "django_celery_beat.*"]
+module = ["environ.*", "celery.*", "django_celery_beat.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-# Testlarda fixture'lar tipsiz bo'lishi mumkin
-module = ["*.tests.*", "tests.*"]
+# `factory-boy` qisman tip ma'lumotiga ega, ammo u noto'g'ri: fabrika
+# chaqiruvi (`ProductFactory()`) yaratilgan modelni emas, fabrika klassini
+# qaytargan ko'rinadi. `follow_imports = "skip"` bu modulni mypy uchun
+# shaffof qiladi, shunda fabrikalar `Any` qaytaradi va testlarning
+# **o'z mantig'i** tekshiruvda qoladi.
+module = ["factory", "factory.*"]
+follow_imports = "skip"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Test infratuzilmasi: `factory-boy` tip stublarini taqdim etmaydi va
+# `DjangoModelFactory[Model]` generic shakli mypy uchun shaffof emas —
+# fabrika chaqiruvi yaratilgan obyekt o'rniga fabrika klassini qaytargan
+# ko'rinadi. Shu sababli faqat **test kodida** tipsiz chaqiruvlar ruxsat
+# etiladi. Ishlab chiqarish kodida (`apps/`, `config/`) strict rejim
+# to'liq kuchda qoladi.
+module = ["conftest", "tests.*", "*.tests.*"]
 disallow_untyped_defs = false
+disallow_untyped_calls = false
+disallow_subclassing_any = false
 
 [tool.django-stubs]
 django_settings_module = "config.settings.dev"

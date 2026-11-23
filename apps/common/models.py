@@ -56,35 +56,22 @@ class ImmutableRecordError(Exception):
         )
 
 
-class SoftDeletableQuerySet(models.QuerySet[Any]):
-    """Faol yozuvlar bilan ishlash uchun QuerySet (Abstraksiya — OOP 2).
-
-    So'rov mantig'i QuerySet ichida yashiriladi: chaqiruvchi kod `is_active=True`
-    shartini takrorlamaydi, `.active()` deb yozadi. Shart o'zgarsa — bitta joyda
-    o'zgaradi.
-    """
-
-    def active(self) -> "SoftDeletableQuerySet":
-        return self.filter(is_active=True)
-
-    def archived(self) -> "SoftDeletableQuerySet":
-        return self.filter(is_active=False)
-
-
 class SoftDeletableModel(models.Model):
     """O'chirish o'rniga arxivlash.
 
     Katalog va mijoz yozuvlari jismonan o'chirilmaydi: ularga buyurtma tarixi
     bog'langan (INV-09, `on_delete=PROTECT`). Arxivlangan yozuv yangi
     buyurtmalarda ko'rinmaydi, ammo tarix buzilmaydi.
+
+    Bu yerda maxsus manager (`.active()` kabi metodlar bilan) **ataylab yo'q**.
+    Birinchi variantda u yozilgan edi, ammo hech qayerda chaqirilmadi:
+    `selectors` qatlami baribir `filter(is_active=True)` ni boshqa shartlar
+    bilan birga yozadi. Ishlatilmaydigan abstraksiya esa zarar keltiradi —
+    abstract modelda e'lon qilingan manager vorislarda tip ma'lumotini
+    yo'qotadi va butun kod bazasida tip tekshiruvini buzadi (KISS, Hooker 2).
     """
 
     is_active = models.BooleanField(_("faol"), default=True, db_index=True)
-
-    # Tip annotatsiyasi ataylab yozilmagan: `as_manager()` django-stubs tomonidan
-    # generatsiya qilinadigan manager klassini qaytaradi, uni qo'lda yozib
-    # bo'lmaydi. mypy uni o'zi aniqlaydi va `.active()` metodini ko'radi.
-    objects = SoftDeletableQuerySet.as_manager()
 
     class Meta:
         abstract = True
