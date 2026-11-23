@@ -19,7 +19,16 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from django.contrib.postgres.search import TrigramSimilarity
-from django.db.models import Case, F, FloatField, QuerySet, Value, When
+from django.db.models import (
+    Case,
+    F,
+    FilteredRelation,
+    FloatField,
+    Q,
+    QuerySet,
+    Value,
+    When,
+)
 from django.db.models.functions import Greatest
 
 from apps.catalog.models import Product
@@ -72,30 +81,36 @@ def search_products(query: str, *, limit: int = DEFAULT_SEARCH_LIMIT) -> list[Pr
 
     rows = (
         Product.objects.filter(is_active=True)
+        # Faqat **tasdiqlangan** sinonimlar JOIN qilinadi. Bu `FilteredRelation`
+        # orqali bajarilishi shart: shartni oddiy `Q(synonyms__is_approved=True)`
+        # filtriga qo'yish ishlamaydi, chunki `TrigramSimilarity` baribir butun
+        # JOIN bo'ylab hisoblanib, tasdiqlanmagan atama uchun ham 1.0 (aniq
+        # moslik) qaytarardi — ya'ni tekshiruv aylanib o'tilardi.
+        #
+        # Nega tasdiqlanmagan sinonim umuman qatnashmaydi: AI suhbatdan
+        # noto'g'ri bog'lanish o'rganib olishi mumkin ("plazma" -> noto'g'ri
+        # televizor). Nazoratchi tasdiqlamaguncha u mijozga ko'rsatilmaydi.
+        .alias(
+            approved_synonym=FilteredRelation(
+                "synonyms",
+                condition=Q(synonyms__is_approved=True),
+            )
+        )
         .annotate(
-            # Aniq mosliklar maksimal ball oladi: ular taxminiy trigram
-            # natijalaridan har doim yuqorida turishi kerak.
+            # SKU aniq moslik eng ishonchli signal — maksimal ball.
             sku_score=Case(
                 When(sku__iexact=cleaned, then=Value(1.0)),
                 default=Value(0.0),
                 output_field=FloatField(),
             ),
-            synonym_exact_score=Case(
-                When(
-                    synonyms__term__iexact=cleaned,
-                    synonyms__is_approved=True,
-                    then=Value(1.0),
-                ),
-                default=Value(0.0),
-                output_field=FloatField(),
-            ),
             name_score=TrigramSimilarity("name", cleaned),
-            synonym_score=TrigramSimilarity("synonyms__term", cleaned),
+            # Trigram aniq moslikda 1.0 qaytaradi, shuning uchun sinonimning
+            # aniq mosligi uchun alohida `Case` kerak emas.
+            synonym_score=TrigramSimilarity("approved_synonym__term", cleaned),
         )
         .annotate(
             score=Greatest(
                 "sku_score",
-                "synonym_exact_score",
                 "name_score",
                 "synonym_score",
                 output_field=FloatField(),

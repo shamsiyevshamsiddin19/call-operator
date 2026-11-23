@@ -44,7 +44,34 @@ Loyiha [Enterprise Software Engineering konstitutsiyasiga](../../MY_SCILL/prompt
 
 ## Ishlab chiqish bosqichlari
 
-- [ ] **M1** — Biznes yadro (`customers`, `catalog`, `inventory`, `orders`, `audit`)
+- [x] **M1** — Biznes yadro (`customers`, `catalog`, `inventory`, `orders`, `audit`)
+      · 211 test, qamrov 96%, `ruff` + `mypy --strict` toza
 - [ ] **M2** — Ovoz kanali (Asterisk + Gemini Live)
 - [ ] **M3** — Telegram kanali
 - [ ] **M4** — Instagram kanali
+
+## Ishga tushirish
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install ".[dev]"
+cp .env.example .env          # qiymatlarni to'ldiring
+docker compose up -d          # PostgreSQL 16 + Redis 7
+.venv/bin/python manage.py migrate
+.venv/bin/python -m pytest
+```
+
+Mashinada PostgreSQL allaqachon o'rnatilgan bo'lsa, Docker'siz ham ishlaydi —
+`.env.example` dagi 2-variantga qarang.
+
+## M1 nimasi tekshirilgan
+
+| Invariant | Qanday tasdiqlangan |
+| :--- | :--- |
+| Parallel rezervatsiyada ortiqcha sotuv yo'q | `threading.Barrier` bilan ikki tranzaksiya bir vaqtda ishga tushiriladi; aynan bittasi o'tadi |
+| Ombor daftari tahrirlanmaydi | `QuerySet.update()`, `QuerySet.delete()` va **xom SQL** uchun alohida testlar — PL/pgSQL trigger uchalasini ham to'sadi |
+| Zaxira manfiyga tushmaydi | `CheckConstraint` ga to'g'ridan-to'g'ri `update()` bilan hujum qilinadi |
+| Daftar va joriy qoldiq mos | Har amal ketma-ketligidan keyin `SUM(delta)` bilan solishtiriladi |
+| AI tannarxni ko'rmaydi | Natija strukturasida maydon **umuman yo'q** (`hasattr` tekshiruvi) |
+| AI boshqa mijozni ko'rmaydi | Urinish `ActorNotPermittedError` beradi va xavfsizlik jurnaliga tushadi |
+| Tasdiqlanmagan AI sinonimi ishlamaydi | `FilteredRelation` bilan JOIN'dan chiqariladi |
+| N+1 so'rov yo'q | `CaptureQueriesContext` bilan so'rov soni sanaladi (10 mahsulot = 1 so'rov) |

@@ -17,6 +17,7 @@ from apps.accounts.actors import Actor
 from apps.common.exceptions import ActorNotPermittedError, InsufficientStockError
 from apps.inventory import selectors, services
 from apps.inventory.models import MovementKind, Stock, StockMovement
+from tests.factories import StockFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -75,9 +76,21 @@ class TestLedgerConsistency:
     """
 
     def test_bir_qator_amallardan_keyin_daftar_mos_keladi(
-        self, stock: Stock, ai_actor: Actor, warehouse_actor: Actor
+        self, ai_actor: Actor, warehouse_actor: Actor
     ) -> None:
-        services.receive_stock(warehouse_actor, stock_id=stock.pk, quantity=5, reason="Kirim")
+        """Barcha o'zgarishlar `services` orqali bo'lsa, daftar mos keladi.
+
+        Zaxira **nol qoldiqdan** boshlanadi: faqat shunda `Stock` qiymatlari
+        to'liq daftardan kelib chiqadi. Fabrikaning standart `on_hand=10` qiymati
+        daftarsiz yaratiladi (test qulayligi uchun), shuning uchun bu testda
+        u ishlatilmaydi — aks holda test o'z farazini buzgan bo'lardi.
+
+        Real tizimda bu holat yuzaga kelmaydi: ombor birinchi marta
+        `receive_stock` bilan to'ldiriladi va daftarga yozuv tushadi.
+        """
+        stock = StockFactory(on_hand=0, reserved=0)
+
+        services.receive_stock(warehouse_actor, stock_id=stock.pk, quantity=15, reason="Kirim")
         services.reserve_stock(ai_actor, stock_id=stock.pk, quantity=4)
         services.release_reservation(ai_actor, stock_id=stock.pk, quantity=1)
         services.reserve_stock(ai_actor, stock_id=stock.pk, quantity=2)
@@ -88,6 +101,13 @@ class TestLedgerConsistency:
             f"daftar ajralib ketdi: qoldiq {result.stock_on_hand} vs {result.ledger_on_hand}, "
             f"rezerv {result.stock_reserved} vs {result.ledger_reserved}"
         )
+
+        # Kutilgan yakuniy holat: 15 kirim - 3 chiqim = 12 qoldiq,
+        # 4 - 1 + 2 - 3 = 2 rezervda
+        stock.refresh_from_db()
+        assert stock.on_hand == 12
+        assert stock.reserved == 2
+        assert stock.available == 10
 
     def test_boshlangich_qoldiq_daftarsiz_yaratilsa_moslik_buziladi(self, stock: Stock) -> None:
         """Fabrika `on_hand=10` ni daftarsiz yaratadi — bu ataylab.
