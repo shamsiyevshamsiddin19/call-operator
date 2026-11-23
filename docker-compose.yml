@@ -1,0 +1,45 @@
+# Ishlab chiqish infratuzilmasi: bir buyruq bilan ko'tariladi (12-Factor, 5-bosqich).
+#
+# Portlar standart qiymatdan farq qiladi (5433 / 6380): mashinada allaqachon
+# lokal PostgreSQL ishlayotgan bo'lishi mumkin, to'qnashuvdan qochiladi.
+
+name: call-operator
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: call_operator
+      POSTGRES_USER: call_operator
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_parol_almashtiring}
+      # Toshkent vaqti — loglar va `created_at` qiymatlari bir xil o'qilishi uchun
+      TZ: Asia/Tashkent
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U call_operator -d call_operator"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    # appendonly: qayta ishga tushganda qo'ng'iroq sessiya holati yo'qolmasligi uchun
+    command: redis-server --appendonly yes
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  redis_data:

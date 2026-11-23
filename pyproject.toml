@@ -1,0 +1,138 @@
+[project]
+name = "call-operator"
+version = "0.1.0"
+description = "Omnichannel avtonom AI sotuv agenti (ovoz + Telegram + Instagram)"
+requires-python = ">=3.12"
+
+dependencies = [
+    "django>=5.2,<5.3",
+    "djangorestframework>=3.15",
+    "psycopg[binary]>=3.2",
+    "django-environ>=0.12",
+    "redis>=5.2",
+    "celery>=5.4",
+    "django-celery-beat>=2.7",
+    "argon2-cffi>=23.1",
+    "structlog>=24.4",
+]
+
+# Bu ilova (Django loyihasi), o'rnatiladigan kutubxona emas —
+# shuning uchun setuptools hech qanday paketni yig'masligi kerak.
+[tool.setuptools]
+packages = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-django>=4.9",
+    "pytest-cov>=6.0",
+    "pytest-xdist>=3.6",
+    "hypothesis>=6.122",
+    "factory-boy>=3.3",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "django-stubs[compatible-mypy]>=5.1",
+    "djangorestframework-stubs>=3.15",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RUFF — linter va formatter
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",      # pycodestyle
+    "F",           # pyflakes
+    "I",           # isort
+    "N",           # pep8-naming
+    "UP",          # pyupgrade
+    "B",           # bugbear
+    "A",           # builtins shadowing
+    "C4",          # comprehensions
+    "DTZ",         # naive datetime taqiqlanadi
+    "T20",         # print() taqiqlanadi — structlog ishlatiladi
+    "SIM",         # soddalashtirish
+    "RET",         # return mantiqi
+    "ARG",         # ishlatilmagan argument
+    "PTH",         # pathlib
+    "ERA",         # kommentga olingan o'lik kod
+    "PL",          # pylint
+    "RUF",
+    "S",           # bandit — xavfsizlik
+    "BLE",         # blind except
+    "TRY",         # xatolik ishlovi
+    "DJ",          # django
+]
+ignore = [
+    "S101",        # assert — testlarda kerak
+    "TRY003",      # uzun xabar — biznes xatoliklarida foydali
+    "PLR0913",     # ko'p argument — service funksiyalarida uchraydi
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Testlarda qattiq xavfsizlik va murakkablik qoidalari yumshatiladi
+"**/tests/**" = ["S105", "S106", "PLR2004", "ARG001", "ARG002"]
+"config/settings/*" = ["F403", "F405"]
+# RUF012: Django `Meta.constraints` / `Meta.indexes` ro'yxatlari idiomatik va
+# ClassVar bilan belgilanmaydi — bu qoida Django modellari uchun noto'g'ri pozitiv.
+"**/models.py" = ["RUF012"]
+# N818: xatolik iyerarxiyasining ildizi ataylab domen tilida nomlangan
+# (`BusinessRuleViolation`), uning barcha vorislari `...Error` bilan tugaydi.
+"apps/common/exceptions.py" = ["N818"]
+# PLC0415: Django'ning standart `manage.py` shabloni importni funksiya ichida qiladi —
+# sozlamalar o'rnatilgandan keyin yuklanishi uchun bu ataylab shunday.
+"manage.py" = ["PLC0415"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Django'da ClassVar bo'lmagan mutable default normal
+extend-immutable-calls = ["django.utils.translation.gettext_lazy"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MYPY — qat'iy tiplar
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_no_return = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+no_implicit_reexport = true
+show_error_codes = true
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+exclude = ['/migrations/']
+
+[[tool.mypy.overrides]]
+module = ["environ.*", "celery.*", "factory.*", "django_celery_beat.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Testlarda fixture'lar tipsiz bo'lishi mumkin
+module = ["*.tests.*", "tests.*"]
+disallow_untyped_defs = false
+
+[tool.django-stubs]
+django_settings_module = "config.settings.dev"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PYTEST
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+addopts = [
+    "--strict-markers",
+    "--cov=apps",
+    "--cov-report=term-missing",
+    "--cov-fail-under=85",
+]
+markers = [
+    "concurrency: poyga holatlari (race condition) testlari — alohida DB tranzaksiyasi kerak",
+]
+
+[tool.coverage.run]
+omit = ["*/migrations/*", "*/tests/*", "config/*", "manage.py"]
