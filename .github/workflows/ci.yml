@@ -47,6 +47,22 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
         run: mypy apps config tests conftest.py
 
+      - name: Xavfsizlik tekshiruvi (prod sozlamalari)
+        # `--deploy` **faqat prod sozlamalari** bilan ma'noga ega: test muhitida
+        # HTTPS, HSTS va xavfsiz cookie'lar ataylab o'chirilgan, shuning uchun
+        # test sozlamalari bilan bu tekshiruv har doim ogohlantirish berardi.
+        #
+        # `continue-on-error` ishlatilmaydi: muvaffaqiyatli yurish ichida
+        # doimiy qizil belgi tursa, vaqt o'tib unga hech kim e'tibor bermaydi
+        # va haqiqiy nosozlik ham sezilmay qoladi.
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.prod
+          DJANGO_SECRET_KEY: ci-xavfsizlik-tekshiruvi-uchun-vaqtinchalik-kalit
+          DJANGO_CSRF_TRUSTED_ORIGINS: https://example.uz
+          DATABASE_URL: postgres://call_operator:parol@localhost:5432/call_operator
+          REDIS_URL: redis://localhost:6379/0
+        run: python manage.py check --deploy --fail-level WARNING
+
   test:
     name: Testlar
     runs-on: ubuntu-latest
@@ -99,8 +115,9 @@ jobs:
         run: pip install -q ".[dev]"
 
       - name: Django tizim tekshiruvlari
-        run: python manage.py check --deploy --fail-level WARNING
-        continue-on-error: true # prod sozlamalari alohida tekshiriladi
+        # Model va sozlama xatolari (`--deploy` emas — u `lint` ishida,
+        # prod sozlamalari bilan tekshiriladi)
+        run: python manage.py check
 
       - name: Migratsiyalar modellarga mos kelishini tekshirish
         # Modelni o'zgartirib migratsiya yozmaslik - eng ko'p uchraydigan
