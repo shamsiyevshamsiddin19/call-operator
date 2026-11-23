@@ -1,0 +1,43 @@
+# Muhit va maxfiy ma'lumotlar
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+.venv/
+venv/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Django
+*.sqlite3
+/media/
+/staticfiles/
+/static_root/
+
+# Qo'ng'iroq yozuvlari — shaxsiy ma'lumot, repoga tushmaydi
+/recordings/
+*.wav
+*.sln
+*.ulaw
+
+# Asterisk lokal konfiguratsiyasi (maxfiy SIP ma'lumoti)
+/deploy/asterisk/local/
+
+# IDE va OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
