@@ -57,7 +57,10 @@ jobs:
         # va haqiqiy nosozlik ham sezilmay qoladi.
         env:
           DJANGO_SETTINGS_MODULE: config.settings.prod
-          DJANGO_SECRET_KEY: ci-xavfsizlik-tekshiruvi-uchun-vaqtinchalik-kalit
+          # `--deploy` kalit uzunligini ham tekshiradi (security.W009):
+          # 50 belgidan qisqa qiymat ogohlantirish beradi.
+          DJANGO_SECRET_KEY: ci-tekshiruvi-uchun-uzun-tasodifiy-qiymat-xyz789-abc456-def123
+          DJANGO_ALLOWED_HOSTS: example.uz
           DJANGO_CSRF_TRUSTED_ORIGINS: https://example.uz
           DATABASE_URL: postgres://call_operator:parol@localhost:5432/call_operator
           REDIS_URL: redis://localhost:6379/0
